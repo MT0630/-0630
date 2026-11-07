@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AutoTapper</string>
+    <string name="accessibility_desc">画面上に置いたターゲットの位置を自動で連続タップします。タップ操作を送るためにこの権限が必要です。</string>
+</resources>
