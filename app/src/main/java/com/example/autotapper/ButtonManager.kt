@@ -30,6 +30,7 @@ class ButtonManager(private val service: TapService) {
     private var running = false
     private var index = 0
     private var interval = 100L
+    private var useShizuku = false
     private val stepRunnable = Runnable { step() }
 
     private var lastW = 0
@@ -82,6 +83,12 @@ class ButtonManager(private val service: TapService) {
         if (running || buttons.isEmpty()) return
         onScreenChanged() // 念のため最新の画面に合わせる
         interval = Prefs.interval(service).coerceAtLeast(10L)
+        useShizuku = Prefs.useShizuku(service)
+        if (useShizuku && !ShizukuTapper.isReady) {
+            ShizukuTapper.bind()
+            Toast.makeText(service, "Shizukuに接続できないため、通常モードで連打します", Toast.LENGTH_SHORT).show()
+            useShizuku = false
+        }
         running = true
         index = 0
         // 連打中はボタンをすり抜け状態にして、タップが下のアプリに届くようにする
@@ -105,9 +112,8 @@ class ButtonManager(private val service: TapService) {
         }
         val p = buttons[index % buttons.size].center()
         index++
-        service.tap(p.x, p.y) {
-            if (running) handler.postDelayed(stepRunnable, interval)
-        }
+        val next = { if (running) handler.postDelayed(stepRunnable, interval) }
+        if (useShizuku) ShizukuTapper.tap(p.x, p.y) { next() } else service.tap(p.x, p.y) { next() }
     }
 
     fun clear() {

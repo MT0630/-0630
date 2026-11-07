@@ -29,6 +29,7 @@ class TapService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        ShizukuTapper.init()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
