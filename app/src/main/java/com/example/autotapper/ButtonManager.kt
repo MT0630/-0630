@@ -3,6 +3,7 @@ package com.example.autotapper
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
+import android.graphics.Point
 import android.graphics.PointF
 import android.os.Build
 import android.os.Handler
@@ -18,6 +19,7 @@ import kotlin.math.hypot
  * 画面に置いた連打ボタンをまとめて管理し、連打ループを回す。
  * 音量ボタン（下）を押している間 startTapping()、離したら stopTapping() が呼ばれる。
  * ボタンが複数あるときは 1→2→3… の順に繰り返しタップする。
+ * 画面の向きが変わったら onScreenChanged() でボタンを画面内に配置し直す。
  */
 class ButtonManager(private val service: TapService) {
 
@@ -30,20 +32,44 @@ class ButtonManager(private val service: TapService) {
     private var interval = 100L
     private val stepRunnable = Runnable { step() }
 
+    private var lastW = 0
+    private var lastH = 0
+
     val count: Int get() = buttons.size
+
+    /** 今の画面の実サイズ（向きを反映） */
+    private fun screenSize(): Point {
+        val p = Point()
+        @Suppress("DEPRECATION")
+        wm.defaultDisplay.getRealSize(p)
+        return p
+    }
 
     fun add() {
         if (running) return
-        val m = service.resources.displayMetrics
-        val size = (64 * m.density).toInt()
-        val offset = buttons.size * (28 * m.density).toInt()
+        val s = screenSize()
+        lastW = s.x; lastH = s.y
+        val density = service.resources.displayMetrics.density
+        val size = (64 * density).toInt()
+        val offset = buttons.size * (28 * density).toInt()
         buttons += TapButton(
             service, wm, buttons.size + 1,
-            x = m.widthPixels / 2 - size / 2 + offset,
-            y = m.heightPixels / 2 - size / 2 + offset,
+            x = s.x / 2 - size / 2 + offset,
+            y = s.y / 2 - size / 2 + offset,
             size = size,
+            screenW = s.x,
+            screenH = s.y,
             onRemove = { remove(it) }
         )
+    }
+
+    /** 画面の向き・サイズが変わったときに呼ぶ。変わっていなければ何もしない */
+    fun onScreenChanged() {
+        if (buttons.isEmpty()) return
+        val s = screenSize()
+        if (s.x == lastW && s.y == lastH) return
+        lastW = s.x; lastH = s.y
+        buttons.forEach { it.applyScreen(s.x, s.y) }
     }
 
     private fun remove(button: TapButton) {
@@ -54,6 +80,7 @@ class ButtonManager(private val service: TapService) {
 
     fun startTapping() {
         if (running || buttons.isEmpty()) return
+        onScreenChanged() // 念のため最新の画面に合わせる
         interval = Prefs.interval(service).coerceAtLeast(10L)
         running = true
         index = 0
@@ -94,7 +121,7 @@ class ButtonManager(private val service: TapService) {
  * 1個の連打ボタン（位置の目印）。
  * - ドラッグ：移動
  * - 長押し：削除
- * ボタンの中心が連打される位置。
+ * ボタンの中心が連打される位置。縦画面と横画面で別々に位置を覚える。
  */
 @SuppressLint("ClickableViewAccessibility")
 class TapButton(
@@ -103,7 +130,9 @@ class TapButton(
     number: Int,
     x: Int,
     y: Int,
-    size: Int,
+    private val size: Int,
+    private var screenW: Int,
+    private var screenH: Int,
     private val onRemove: (TapButton) -> Unit
 ) {
     val view = TargetView(service, number)
@@ -119,11 +148,18 @@ class TapButton(
         gravity = Gravity.TOP or Gravity.START
         this.x = x
         this.y = y
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             layoutInDisplayCutoutMode =
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
     }
+
+    /** 縦(false)・横(true) それぞれで最後に置いた位置 */
+    private val savedPos = HashMap<Boolean, Point>()
+    private var landscape = screenW > screenH
 
     private val handler = Handler(Looper.getMainLooper())
     private val slop = ViewConfiguration.get(service).scaledTouchSlop
@@ -143,8 +179,40 @@ class TapButton(
     }
 
     init {
+        clampToScreen()
         view.setOnTouchListener { _, e -> onTouch(e); true }
         wm.addView(view, lp)
+    }
+
+    /** 画面サイズ・向きが変わったときに位置を合わせ直す */
+    fun applyScreen(w: Int, h: Int) {
+        if (destroyed) return
+        val newLandscape = w > h
+        if (newLandscape != landscape) {
+            // 今の向きでの位置を覚えておき、新しい向きで前回の位置があればそこへ戻す
+            savedPos[landscape] = Point(lp.x, lp.y)
+            val saved = savedPos[newLandscape]
+            if (saved != null) {
+                lp.x = saved.x
+                lp.y = saved.y
+            } else {
+                // 初めての向きなら、画面上の相対位置を保って移す
+                val cx = (lp.x + size / 2f) / screenW
+                val cy = (lp.y + size / 2f) / screenH
+                lp.x = (cx * w - size / 2f).toInt()
+                lp.y = (cy * h - size / 2f).toInt()
+            }
+            landscape = newLandscape
+        }
+        screenW = w
+        screenH = h
+        clampToScreen()
+        runCatching { wm.updateViewLayout(view, lp) }
+    }
+
+    private fun clampToScreen() {
+        lp.x = lp.x.coerceIn(0, (screenW - size).coerceAtLeast(0))
+        lp.y = lp.y.coerceIn(0, (screenH - size).coerceAtLeast(0))
     }
 
     private fun onTouch(e: MotionEvent) {
@@ -167,6 +235,7 @@ class TapButton(
                 if (dragging) {
                     lp.x = startX + dx.toInt()
                     lp.y = startY + dy.toInt()
+                    clampToScreen()
                     runCatching { wm.updateViewLayout(view, lp) }
                 }
             }

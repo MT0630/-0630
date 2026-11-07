@@ -3,7 +3,10 @@ package com.example.autotapper
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Path
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 
@@ -29,7 +32,14 @@ class TapService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // 画面の内容は読まないので何もしない
+        // 画面の内容は読まない。アプリ切り替え時に画面の向きが変わっていないかだけ確認する
+        manager?.onScreenChanged()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // 回転直後は画面サイズの反映が遅れることがあるので少し待ってから合わせる
+        Handler(Looper.getMainLooper()).postDelayed({ manager?.onScreenChanged() }, 300L)
     }
 
     override fun onInterrupt() {
