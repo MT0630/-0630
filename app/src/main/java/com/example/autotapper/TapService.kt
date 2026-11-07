@@ -4,11 +4,13 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Intent
 import android.graphics.Path
+import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 
 /**
  * ユーザー補助サービス。
- * - オーバーレイ（パネルとターゲット）の表示
+ * - 連打ボタンの表示（ButtonManager）
+ * - 音量ボタン（下）の押下・解放の検知 → 連打の開始・停止
  * - dispatchGesture() による実際のタップ送信
  */
 class TapService : AccessibilityService() {
@@ -31,7 +33,23 @@ class TapService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        manager?.stopAll()
+        manager?.stopTapping()
+    }
+
+    /**
+     * 音量ボタン（下）を押している間だけ連打する。
+     * 連打ボタンが1つも無いときは横取りせず、普通の音量操作として通す。
+     */
+    override fun onKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) return false
+        val m = manager
+        if (m == null || m.count == 0) return false
+
+        when (event.action) {
+            KeyEvent.ACTION_DOWN -> if (event.repeatCount == 0) m.startTapping()
+            KeyEvent.ACTION_UP -> m.stopTapping()
+        }
+        return true // 音量が下がらないように消費する
     }
 
     override fun onUnbind(intent: Intent?): Boolean {

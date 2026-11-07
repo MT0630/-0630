@@ -42,18 +42,6 @@
             android:layout_height="wrap_content"
             android:inputType="number" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="タップ回数（0 = 停止するまで無制限）" />
-
-        <EditText
-            android:id="@+id/editCount"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="number" />
-
         <Button
             android:id="@+id/btnAdd"
             android:layout_width="match_parent"
@@ -71,7 +59,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="連打ボタンの使い方\n・タップ：その位置の連打を開始（緑になります）\n・連打中にタップ：停止\n・ドラッグ：移動\n・長押し：削除\n\nボタンの中心が連打される位置です。複数置くとそれぞれ独立して動きます。間隔・回数の変更は次の開始から反映されます。"
+            android:text="使い方\n・連打ボタンをドラッグして、連打したい位置に置く\n・音量ボタン（下）を押している間だけ連打（ボタンが緑になります）\n・音量ボタンを離すと停止、また押すと再開\n・連打ボタンを長押し：削除\n\nボタンの中心が連打される位置です。複数置くと 1→2→3… の順に回ります。連打ボタンが1つも無いときは、音量ボタンは普通に音量操作として使えます。"
             android:textSize="13sp" />
     </LinearLayout>
 </ScrollView>

@@ -15,10 +15,9 @@ object Prefs {
     private fun sp(c: Context) = c.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     fun interval(c: Context): Long = sp(c).getLong("interval", 100L)
-    fun maxTaps(c: Context): Int = sp(c).getInt("maxTaps", 0)
 
-    fun save(c: Context, interval: Long, maxTaps: Int) {
-        sp(c).edit().putLong("interval", interval).putInt("maxTaps", maxTaps).apply()
+    fun save(c: Context, interval: Long) {
+        sp(c).edit().putLong("interval", interval).apply()
     }
 }
 
@@ -26,7 +25,6 @@ class MainActivity : Activity() {
 
     private lateinit var statusText: TextView
     private lateinit var editInterval: EditText
-    private lateinit var editCount: EditText
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,10 +32,7 @@ class MainActivity : Activity() {
 
         statusText = findViewById(R.id.statusText)
         editInterval = findViewById(R.id.editInterval)
-        editCount = findViewById(R.id.editCount)
-
         editInterval.setText(Prefs.interval(this).toString())
-        editCount.setText(Prefs.maxTaps(this).toString())
 
         findViewById<Button>(R.id.btnAccessibility).setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -76,7 +71,6 @@ class MainActivity : Activity() {
     private fun saveSettings() {
         // 10ms 未満は端末に負荷がかかるだけなので下限を設ける
         val interval = (editInterval.text.toString().toLongOrNull() ?: 100L).coerceAtLeast(10L)
-        val count = (editCount.text.toString().toIntOrNull() ?: 0).coerceAtLeast(0)
-        Prefs.save(this, interval, count)
+        Prefs.save(this, interval)
     }
 }
